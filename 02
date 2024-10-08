@@ -1,0 +1,62 @@
+
+trigger:
+- main
+
+pool:
+  name: 'windows-vm'
+
+variables:
+  solution: '**/*.sln'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+
+
+stages:
+- stage: Build
+  displayName: 'Build stage'
+  jobs:
+  - job: Buildjob
+    displayName: 'Build Job'
+    steps:
+
+    - task: NuGetToolInstaller@1
+      name: 'NuGetToolInstaller'
+      displayName: 'NuGet tool installer'
+
+    - task: NuGetCommand@2
+      name: 'NuGetRestore'
+      displayName: 'NuGet restore packages'
+      inputs:
+        command: 'restore'
+        restoreSolution: '$(solution)'
+        feedsToUse: 'select'
+
+    # UseDotNet task to install .NET SDK version 3.1.x
+    - task: UseDotNet@2
+      inputs:
+        packageType: 'sdk'
+        version: '3.1.x'  # Specify the version you need
+        installationPath: $(Agent.ToolsDirectory)/dotnet
+
+    - task: VSBuild@1
+      inputs:
+        solution: '$(solution)'
+        msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=FileSystem /p:SkipInvalidConfigurations=true /p:OutDir=$(build.artifactStagingDirectory)\CRM /p:DeployIisAppPath="Default Web Site"'
+        platform: '$(buildPlatform)'
+        configuration: '$(buildConfiguration)'
+
+        
+    - script: dir $(build.artifactStagingDirectory)
+      displayName: 'List contents of Artifact Staging Directory' 
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish Artifact'
+      inputs:
+       targetPath: '$(Build.ArtifactStagingDirectory)'
+       artifactName: 'CultureArtifact-$(Build.BuildNumber)'
+       publishLocation:  'pipeline'
+       
+       
+
+
+
