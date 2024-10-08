@@ -1,0 +1,92 @@
+trigger:
+- main
+
+pool:
+  name: 'windows-vm'
+  clean: true
+
+variables:
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+  solution: '**/*.sln'
+  project: '**/*.csproj'
+  outputPath: '$(Build.BinariesDirectory)\$(buildConfiguration)\'  # Added output path
+
+steps:
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      if (Test-Path "C:\Users\Cultural_Admin\agent\_work\1\a\_PublishedWebsites") {
+          Remove-Item -Recurse -Force "C:\Users\Cultural_Admin\agent\_work\1\a\_PublishedWebsites"
+          Write-Host "Directory removed successfully."
+      } else {
+          Write-Host "Directory does not exist, skipping deletion."
+      }
+
+- task: NuGetToolInstaller@1
+  name: 'NuGetToolInstaller'
+  displayName: 'NuGet tool installer'
+
+- task: NuGetCommand@2
+  name: 'NuGetRestore'
+  displayName: 'NuGet restore packages'
+  inputs:
+    command: 'restore'
+    restoreSolution: '$(solution)'
+    feedsToUse: 'select'
+
+
+
+# Build the solution using MSBuild (for .NET Framework)
+- task: VSBuild@1
+  name: 'BuildSolution'
+  displayName: 'Build solution'
+  inputs:
+    solution: '$(solution)'
+    msbuildArgs: '/p:Configuration=$(buildConfiguration) /p:Platform="$(buildPlatform)" /p:OutputPath=$(outputPath)'  # Added quotes around $(buildPlatform)
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+
+# Run tests (if applicable for .NET Framework projects)
+- task: VSTest@2
+  name: 'RunTests'
+  displayName: 'Run tests'
+  inputs:
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+# Publish the project (for .NET Framework)
+- task: VSBuild@1
+  name: 'Publish'
+  displayName: 'Publish project'
+  inputs:
+    solution: '$(project)'
+    msbuildArgs: '/p:Configuration=$(buildConfiguration) /p:DeployOnBuild=true /p:OutputPath=$(Build.ArtifactStagingDirectory)'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+# Set folder permissions for the _PublishedWebsites folder
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      $folderPath = "C:\Users\Cultural_Admin\agent\_work\1\a\_PublishedWebsites\CRM"
+      if (Test-Path $folderPath) {
+          # Get the security object of the folder
+          $acl = Get-Acl $folderPath
+
+          # Define a new rule granting FullControl to Everyone
+          $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule("Everyone", "FullControl", "Allow")
+          
+          # Add the new rule to the existing ACL
+          $acl.SetAccessRule($accessRule)
+
+          # Apply the modified ACL back to the folder
+          Set-Acl $folderPath $acl
+
+          Write-Host "Full control permissions have been set for $folderPath."
+      } else {
+          Write-Host "Directory $folderPath does not exist, skipping permission set."
+      }
