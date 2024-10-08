@@ -1,0 +1,58 @@
+trigger:
+- main
+
+pool:
+  name: 'windows-vm'
+
+variables:
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+  solution: '**/*.sln'
+  project: '**/*.csproj'
+  outputPath: '$(Build.BinariesDirectory)\$(buildConfiguration)\'  # Added output path
+
+steps:
+- task: NuGetToolInstaller@1
+  name: 'NuGetToolInstaller'
+  displayName: 'NuGet tool installer'
+
+- task: NuGetCommand@2
+  name: 'NuGetRestore'
+  displayName: 'NuGet restore packages'
+  inputs:
+    command: 'restore'
+    restoreSolution: '$(solution)'
+    feedsToUse: 'select'
+
+
+
+# Build the solution using MSBuild (for .NET Framework)
+- task: VSBuild@1
+  name: 'BuildSolution'
+  displayName: 'Build solution'
+  inputs:
+    solution: '$(solution)'
+    msbuildArgs: '/p:Configuration=$(buildConfiguration) /p:Platform="$(buildPlatform)" /p:OutputPath=$(outputPath)'  # Added quotes around $(buildPlatform)
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+
+# Run tests (if applicable for .NET Framework projects)
+- task: VSTest@2
+  name: 'RunTests'
+  displayName: 'Run tests'
+  inputs:
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+# Publish the project (for .NET Framework)
+- task: VSBuild@1
+  name: 'Publish'
+  displayName: 'Publish project'
+  inputs:
+    solution: '$(project)'
+    msbuildArgs: '/p:Configuration=$(buildConfiguration) /p:DeployOnBuild=true /p:OutputPath=$(Build.ArtifactStagingDirectory)'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+
