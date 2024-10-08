@@ -54,10 +54,3 @@ steps:
     msbuildArgs: '/p:Configuration=$(buildConfiguration) /p:DeployOnBuild=true /p:OutputPath=$(Build.ArtifactStagingDirectory)'
     platform: '$(buildPlatform)'
     configuration: '$(buildConfiguration)'
-
-
-![WhatsApp Image 2024-10-08 at 12 43 07_88a07775](https://github.com/user-attachments/assets/2b4e6740-94e3-41ed-9b8a-90febeb5a244)
-this changes
-<BaseOutputPath>$(SolutionDir)bin\</BaseOutputPath> <!-- Added BaseOutputPath -->
-
-
