@@ -1,0 +1,130 @@
+trigger:
+- none
+
+pool:
+  name: 'windows-vm'
+  clean: true
+
+variables:
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+  solution: '**/*.sln'
+  project: '**/*.csproj'
+  outputPath: '$(Build.BinariesDirectory)\$(buildConfiguration)\'  # Added output path
+  IISWebsiteName: 'CRM'
+
+steps:
+
+
+- task: NuGetToolInstaller@1
+  name: 'NuGetToolInstaller'
+  displayName: 'NuGet tool installer'
+
+- task: NuGetCommand@2
+  name: 'NuGetRestore'
+  displayName: 'NuGet restore packages'
+  inputs:
+    command: 'restore'
+    restoreSolution: '$(solution)'
+    feedsToUse: 'select'
+
+
+# Build the solution using MSBuild (for .NET Framework)
+- task: VSBuild@1
+  name: 'BuildSolution'
+  displayName: 'Build solution'
+  inputs:
+    solution: '$(solution)'
+    msbuildArgs: '/p:Configuration=$(buildConfiguration) /p:Platform="$(buildPlatform)" /p:OutputPath=$(outputPath)'  # Added quotes around $(buildPlatform)
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+
+# Run tests (if applicable for .NET Framework projects)
+- task: VSTest@2
+  name: 'RunTests'
+  displayName: 'Run tests'
+  inputs:
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+# Publish the project (for .NET Framework)
+- task: VSBuild@1
+  name: 'Publish'
+  displayName: 'Publish project'
+  inputs:
+    solution: '$(project)'
+    msbuildArgs: '/p:Configuration=$(buildConfiguration) /p:DeployOnBuild=true /p:OutputPath=$(Build.ArtifactStagingDirectory)'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+#  Publish build artifacts without zipping
+- task: PublishBuildArtifacts@1
+  name: 'PublishBuildArtifacts'
+  displayName: 'Publish build artifacts'
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'  # Path where files are stored
+    ArtifactName: 'CRM'  # Name of the artifact
+    publishLocation: 'Container'  # Location to publish artifacts
+    # ArtifactType: 'AzurePipelines'   # Ensure that it's published as a folder of files, not zipped
+
+
+
+
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      $pathToCheck = "$(Build.ArtifactStagingDirectory)"
+      if (Test-Path $pathToCheck) {
+          $files = Get-ChildItem -Path $pathToCheck
+          if ($files.Count -gt 0) {
+              Write-Host "Files found in $pathToCheck."
+          } else {
+              Write-Host "No files found in $pathToCheck."
+          }
+      } else {
+          Write-Host "$pathToCheck does not exist."
+      }
+
+
+# Set folder permissions using icacls to give Everyone full control
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      $folderPath = "C:\Users\Cultural_Admin\agent\_work\1\a\_PublishedWebsites\CRM"
+      if (Test-Path $folderPath) {
+          icacls $folderPath /grant "Everyone:(OI)(CI)F" /T
+          Write-Host "Full control permissions have been granted to Everyone for $folderPath."
+      } else {
+          Write-Host "Directory $folderPath does not exist, skipping permission set."
+      }
+
+
+
+
+# Copy files to the desired location
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      $sourceFolder = "C:\Users\Cultural_Admin\Desktop\Culture"
+      $destinationFolder = "C:\Users\Cultural_Admin\agent\_work\1\a\_PublishedWebsites\CRM\bin\roslyn"
+
+      if (Test-Path $sourceFolder) {
+          # Create destination folder if it does not exist
+          if (-Not (Test-Path $destinationFolder)) {
+              New-Item -ItemType Directory -Path $destinationFolder
+              Write-Host "Created destination folder: $destinationFolder"
+          }
+
+          # Copy application files to the destination folder
+          Copy-Item "$sourceFolder\*" -Destination $destinationFolder -Recurse -Force
+          Write-Host "Files copied from $sourceFolder to $destinationFolder successfully."
+      } else {
+          Write-Host "Source folder $sourceFolder does not exist, skipping copy."
+      }  
+
+
+      
