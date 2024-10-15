@@ -1,0 +1,111 @@
+trigger:
+- main
+
+pool:
+  name: 'windows-vm'
+  clean: false  # Preserves previous build outputs
+
+variables:
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+  solution: '**/*.sln'
+  project: '**/*.csproj'
+  outputPath: '$(Build.BinariesDirectory)\$(buildConfiguration)\'
+  IISWebsiteName: 'CRM'
+  deploymentPath: '\\101.53.149.147\C:\Users\Cultural_Admin\agent\_work\1\a\_PublishedWebsites\CRM'  # Replace with your server and share
+
+
+steps:
+# Install NuGet tool
+- task: NuGetToolInstaller@1
+  name: 'NuGetToolInstaller'
+  displayName: 'NuGet tool installer'
+
+# Restore NuGet packages
+- task: NuGetCommand@2
+  name: 'NuGetRestore'
+  displayName: 'NuGet restore packages'
+  inputs:
+    command: 'restore'
+    restoreSolution: '$(solution)'
+    feedsToUse: 'select'
+
+# Build the solution using MSBuild (for .NET Framework)
+- task: VSBuild@1
+  name: 'BuildSolution'
+  displayName: 'Build solution'
+  inputs:
+    solution: '$(solution)'
+    msbuildArgs: '/p:Configuration=$(buildConfiguration) /p:Platform="$(buildPlatform)" /p:OutputPath=$(outputPath) /p:UseIncrementalBuild=true'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+# Run tests (if applicable for .NET Framework projects)
+- task: VSTest@2
+  name: 'RunTests'
+  displayName: 'Run tests'
+  inputs:
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+# Publish the project (for .NET Framework)
+- task: VSBuild@1
+  name: 'Publish'
+  displayName: 'Publish project'
+  inputs:
+    solution: '$(project)'
+    msbuildArgs: '/p:Configuration=$(buildConfiguration) /p:DeployOnBuild=true /p:OutputPath=$(Build.ArtifactStagingDirectory) /p:AutoParameterizationWebConfigConnectionStrings=false /p:UseWPP_CopyWebApplication=true /p:SkipExtraFilesOnServer=True'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+# Sync changes to deployment share
+- task: PowerShell@2
+  name: 'SyncChanges'
+  displayName: 'Sync changes to deployment share'
+  inputs:
+    targetType: 'inline'
+    script: |
+      $source = "$(Build.ArtifactStagingDirectory)"
+      $destination = "$(deploymentPath)"
+      
+      # Ensure the destination exists
+      if (!(Test-Path -Path $destination)) {
+        New-Item -ItemType Directory -Force -Path $destination
+      }
+      
+      # Use robocopy for synchronization
+      robocopy $source $destination /E /XO /XX /NP /R:3 /W:10
+
+      # robocopy returns non-zero exit codes for successful operations, so we need to handle this
+      if ($lastexitcode -ge 8) {
+        throw "robocopy failed with exit code $lastexitcode"
+      } else {
+        exit 0
+      }
+
+# Stop IIS site
+- task: IISWebAppManagementOnMachineGroup@0
+  name: 'StopIISSite'
+  displayName: 'Stop IIS Website'
+  inputs:
+    IISDeploymentType: 'IISWebsite'
+    ActionIISWebsite: 'StopWebsite'
+    StartStopWebsiteName: '$(IISWebsiteName)'
+
+# Update IIS site
+- task: IISWebAppDeploymentOnMachineGroup@0
+  name: 'UpdateIISSite'
+  displayName: 'Update IIS Website'
+  inputs:
+    WebSiteName: '$(IISWebsiteName)'
+    Package: '$(deploymentPath)'
+    XmlVariableSubstitution: 'True'
+
+# Start IIS site
+- task: IISWebAppManagementOnMachineGroup@0
+  name: 'StartIISSite'
+  displayName: 'Start IIS Websites'
+  inputs:
+    IISDeploymentType: 'IISWebsite'
+    ActionIISWebsite: 'StartWebsite'
+    StartStopWebsiteName: '$(IISWebsiteName)'
