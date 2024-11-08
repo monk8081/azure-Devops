@@ -1,0 +1,211 @@
+# ASP.NET
+# Build and test ASP.NET projects.
+# Add steps that publish symbols, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/apps/aspnet/build-aspnet-4
+
+# trigger:
+#   batch: true
+#   branches:
+#     include:
+#     - main
+#     - releases/*
+
+# # pool:
+# #   vmImage: 'windows-2019'
+
+# pool:
+#   name: 'CultureAgent'
+#   clean: false  # Keep previous build output
+
+# variables:
+#   solution: '**/*.sln'
+#   buildPlatform: 'Any CPU'
+#   buildConfiguration: 'Release'
+
+# steps:
+# - task: NuGetToolInstaller@1
+
+# - task: NuGetCommand@2
+#   inputs:
+#     restoreSolution: '$(solution)'
+
+# - task: VSBuild@1
+#   inputs:
+#     solution: '$(solution)'
+#     msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactStagingDirectory)"'
+#     platform: '$(buildPlatform)'
+#     configuration: '$(buildConfiguration)'
+
+# - task: VSTest@2
+#   inputs:
+#     platform: '$(buildPlatform)'
+#     configuration: '$(buildConfiguration)'
+    
+# - task: PublishBuildArtifacts@1
+#   inputs:
+#     PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+#     ArtifactName: 'CultureFrontDev'
+#     publishLocation: 'Container'
+
+
+# trigger:
+# - main
+
+# pool:
+#   name: 'CultureAgent'
+#   clean: false  # Keep previous build output
+
+# variables:
+#   solution: '**/*.sln'
+#   buildPlatform: 'Any CPU'
+#   buildConfiguration: 'Release'
+
+# steps:
+# - task: NuGetToolInstaller@1
+
+# - task: NuGetCommand@2
+#   inputs:
+#     restoreSolution: '$(solution)'
+
+# - task: VSBuild@1
+#   inputs:
+#     solution: '$(solution)'
+#     # msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=false /p:SkipInvalidConfigurations=true /p:DesktopBuildPackageLocation="$(build.artifactStagingDirectory)\ClutureFront" /p:AutoParameterizationWebConfigConnectionStrings=false /p:DeployIisAppPath="Default Web Site"'
+#     msbuildArgs: '/p:DeployOnBuild=true 
+#                   /p:WebPublishMethod=Package 
+#                   /p:PackageAsSingleFile=false 
+#                   /p:SkipInvalidConfigurations=true 
+#                   /p:DesktopBuildPackageLocation="$(build.artifactStagingDirectory)\ClutureFront" 
+#                   /p:AutoParameterizationWebConfigConnectionStrings=false 
+#                   /p:DeployIisAppPath="Default Web Site"
+#                   /p:EnableUpdateable=true
+#                   /p:SkipExtraFilesOnServer=true
+#                   /p:AllowUntrustedCertificate=true'
+#     platform: '$(buildPlatform)'
+#     configuration: '$(buildConfiguration)'
+
+# - task: VSTest@2
+#   inputs:
+#     platform: '$(buildPlatform)'
+#     configuration: '$(buildConfiguration)'
+
+
+# - task: PublishBuildArtifacts@1
+#   inputs:
+#     PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+#     ArtifactName: 'CultureFrontDev'
+#     publishLocation: 'Container'
+#     artifactType: 'container'
+#     preserve: true
+
+
+
+
+
+
+
+
+
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+    
+pool:
+  name: 'CultureAgent'
+  clean: false  # Changed to false to preserve previous build output
+
+variables:
+  solution: '**/*.sln'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+
+stages:
+
+# Stage for Develop Environment
+- stage: BuildAndDeployToDevelop
+  displayName: 'Build and Deploy to Development'
+  jobs:
+  
+    # Job for building the solution
+    - job: Build
+      displayName: 'Build the Solution'
+      pool: 
+        name: 'CultureAgent'
+      
+      steps:
+        # Install NuGet tool
+        - task: NuGetToolInstaller@1
+          name: 'NuGetToolInstaller'
+          displayName: 'NuGet tool installer'
+
+        # Restore NuGet packages
+        - task: NuGetCommand@2
+          name: 'NuGetRestore'
+          displayName: 'NuGet restore packages'
+          inputs: 
+            restoreSolution: '$(solution)'
+          
+
+        # Build the solution using MSBuild (for .NET Framework)
+        - task: VSBuild@1
+          name: 'BuildSolution'
+          displayName: 'Build solution'
+          inputs:
+                solution: '$(solution)'
+                # msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=false /p:SkipInvalidConfigurations=true /p:DesktopBuildPackageLocation="$(build.artifactStagingDirectory)\ClutureFront" /p:AutoParameterizationWebConfigConnectionStrings=false /p:DeployIisAppPath="Default Web Site"'
+                msbuildArgs: '/p:DeployOnBuild=true 
+                              /p:WebPublishMethod=Package 
+                              /p:PackageAsSingleFile=false 
+                              /p:SkipInvalidConfigurations=true 
+                              /p:DesktopBuildPackageLocation="$(build.artifactStagingDirectory)\ClutureFront" 
+                              /p:AutoParameterizationWebConfigConnectionStrings=false 
+                              /p:DeployIisAppPath="Default Web Site"
+                              /p:EnableUpdateable=true
+                              /p:SkipExtraFilesOnServer=true
+                              
+                platform: '$(buildPlatform)'
+                configuration: '$(buildConfiguration)'
+
+
+        # Run tests (if applicable for .NET Framework projects)
+        - task: VSTest@2
+          name: 'RunTests'
+          displayName: 'Run tests'
+          inputs:
+            platform: '$(buildPlatform)'
+            configuration: '$(buildConfiguration)'
+
+
+
+        # Publish build artifact without zipping
+        - task: PublishBuildArtifacts@1
+          name: 'PublishBuildArtifacts'
+          displayName: 'Publish build artifacts'
+          inputs:
+            PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+            ArtifactName: 'CultureFrontDev'
+            publishLocation: 'Container'
+            artifactType: 'container'
+            preserve: true
+            
+    # Deployment job specific to the "Development-environment"
+    - deployment: DeployToDevelop
+      displayName: 'Deploy to Develop Environment'
+      dependsOn: Build  # Ensure this job only runs after the Build job
+      environment: 'CultureFrontDevelopment-Environment'  # Your environment name
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+              - task: DownloadBuildArtifacts@0
+                inputs:
+                  buildType: 'current'
+                  downloadType: 'single'
+                  artifactName: 'CultureFrontDev'
+                  downloadPath: '$(System.ArtifactsDirectory)'
+
+              # Add specific deployment tasks here if necessary
+              - script: echo "Deploying to Development environment "
